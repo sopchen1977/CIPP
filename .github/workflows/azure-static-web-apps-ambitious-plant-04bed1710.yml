@@ -19,6 +19,28 @@ jobs:
         with:
           submodules: true
           lfs: false
+      # Build on the runner instead of letting Oryx do it.
+      #
+      # Oryx cannot build this app: jsdom requires node
+      # "^22.22.2 || ^24.15.0 || >=26.0.0", and Oryx's newest SDKs are 22.22.0
+      # and 24.13.0 - neither satisfies it, so `yarn install` fails the engines
+      # check no matter what engines.node says. Installing a real Node here and
+      # passing skip_app_build below sidesteps Oryx entirely.
+      #
+      # 22.x resolves to the latest Node 22, which clears the ^22.22.2 floor.
+      # If a future CIPP release requires Node 24+, the install fails with an
+      # explicit engines error - bump this to 24.x at that point.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.x"
+      # No setup-node dependency cache on purpose: CIPP's build script ends with
+      # `rm -rf package.json yarn.lock`, so the cache post-step would fail
+      # hashing a lockfile that no longer exists.
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      - name: Build
+        run: yarn build
       - name: Build And Deploy
         id: builddeploy
         uses: Azure/static-web-apps-deploy@v1
@@ -30,7 +52,8 @@ jobs:
           # For more information regarding Static Web App workflow configurations, please visit: https://aka.ms/swaworkflowconfig
           app_location: "/" # App source code path
           api_location: "" # Api source code path - optional
-          output_location: "/out" # Built app content directory - optional
+          output_location: "out" # Built app content directory, relative to app_location
+          skip_app_build: true # Already built above; do not invoke Oryx
           ###### End of Repository/Build Configurations ######
 
   close_pull_request_job:
